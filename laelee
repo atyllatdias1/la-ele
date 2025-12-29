@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Gestão de Licenças</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Fonte -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Flatpickr -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+<style>
+:root {
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --sidebar: #111827;
+  --sidebar-hover: #1f2937;
+  --primary: #2563eb;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  display: flex;
+  height: 100vh;
+  color: var(--text);
+}
+
+/* Sidebar */
+aside {
+  width: 240px;
+  background: var(--sidebar);
+  color: #fff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+aside h2 {
+  margin-bottom: 24px;
+  font-size: 20px;
+}
+
+aside button {
+  background: none;
+  border: none;
+  color: #fff;
+  padding: 12px;
+  text-align: left;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+aside button:hover {
+  background: var(--sidebar-hover);
+}
+
+/* Main */
+main {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: 0 10px 20px rgba(0,0,0,.05);
+  max-width: 700px;
+}
+
+.hidden { display: none; }
+
+h1 { margin-top: 0; }
+
+/* Form */
+label {
+  display: block;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+input, select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Date Component */
+.date-field {
+  position: relative;
+}
+
+.date-actions {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.date-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 20px rgba(0,0,0,.08);
+  z-index: 10;
+}
+
+.date-menu button {
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.date-menu button:hover {
+  background: var(--bg);
+}
+
+/* Buttons */
+.actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+}
+
+.primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.secondary {
+  background: none;
+  border: 1px solid var(--border);
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  aside { display: none; }
+  main { padding: 16px; }
+}
+</style>
+</head>
+
+<body>
+
+<aside>
+  <h2>Licenças</h2>
+  <button data-nav="home">Home</button>
+  <button data-nav="new">Nova Licença</button>
+</aside>
+
+<main>
+  <section id="home" class="card">
+    <h1>Minhas Licenças</h1>
+    <div id="licenseList"></div>
+  </section>
+
+  <section id="new" class="card hidden">
+    <h1>Nova Licença</h1>
+
+    <label>Tipo</label>
+    <select id="mainType">
+      <option value="">Selecione</option>
+      <option value="afastamento">Afastamentos Temporários</option>
+    </select>
+
+    <label id="subTypeLabel" class="hidden">Subtipo</label>
+    <select id="subType" class="hidden"></select>
+
+    <label>Data ida e volta</label>
+    <div class="date-field">
+      <input id="dateRange" placeholder="Selecione o período..." readonly>
+      <button class="date-actions" id="dateMenuBtn">⋮</button>
+      <div id="dateMenu" class="date-menu hidden">
+        <button id="manualModeBtn">Digitar manualmente</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="saveBtn">Criar</button>
+      <button class="secondary" data-nav="home">Cancelar</button>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script>
+/* ===== Estado ===== */
+let licenses = [];
+let flatpickrInstance = null;
+let manualMode = false;
+
+/* ===== Navegação ===== */
+document.querySelectorAll('[data-nav]').forEach(btn => {
+  btn.addEventListener('click', () => showScreen(btn.dataset.nav));
+});
+
+function showScreen(id) {
+  document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  if (id === 'home') renderList();
+}
+
+/* ===== Subtipo ===== */
+const subTypes = [
+  'Férias','Licença-maternidade','Licença-paternidade',
+  'Licença médica','Licença nojo','Licença gala',
+  'Licença não remunerada','Acidente de trabalho'
+];
+
+document.getElementById('mainType').addEventListener('change', () => {
+  const sub = document.getElementById('subType');
+  sub.innerHTML = subTypes.map(t => `<option>${t}</option>`).join('');
+  sub.classList.remove('hidden');
+  document.getElementById('subTypeLabel').classList.remove('hidden');
+});
+
+/* ===== Date Component ===== */
+const dateInput = document.getElementById('dateRange');
+
+function initFlatpickr() {
+  flatpickrInstance = flatpickr(dateInput, {
+    mode: "range",
+    dateFormat: "d/m/Y",
+    locale: "pt",
+    onClose: validateRange
+  });
+}
+
+initFlatpickr();
+
+/* Menu */
+document.getElementById('dateMenuBtn').onclick = () =>
+  document.getElementById('dateMenu').classList.toggle('hidden');
+
+/* Manual Mode */
+document.getElementById('manualModeBtn').onclick = () => {
+  manualMode = true;
+  flatpickrInstance.destroy();
+  dateInput.readOnly = false;
+  dateInput.value = '';
+  document.getElementById('dateMenu').classList.add('hidden');
+};
+
+/* Mask */
+dateInput.addEventListener('input', e => {
+  if (!manualMode) return;
+  let v = e.target.value.replace(/\D/g,'').slice(0,16);
+  e.target.value = v
+    .replace(/(\d{2})(\d)/,'$1/$2')
+    .replace(/(\d{2})(\d)/,'$1/$2')
+    .replace(/(\d{4})(\d)/,'$1 a $2')
+    .replace(/(\d{2})(\d)/,'$1/$2')
+    .replace(/(\d{2})(\d)/,'$1/$2');
+});
+
+/* Validation */
+function validateRange() {
+  if (!dateInput.value) return false;
+  const parts = dateInput.value.split(' a ');
+  if (parts.length !== 2) return false;
+
+  const d1 = parseDate(parts[0]);
+  const d2 = parseDate(parts[1]);
+
+  return d1 && d2 && d2 >= d1;
+}
+
+function parseDate(str) {
+  const [d,m,y] = str.split('/').map(Number);
+  const dt = new Date(y, m-1, d);
+  return dt && dt.getDate()===d ? dt : null;
+}
+
+/* Save */
+document.getElementById('saveBtn').onclick = () => {
+  if (!document.getElementById('subType').value || !validateRange()) {
+    alert('Dados inválidos');
+    return;
+  }
+  licenses.push({
+    id: Date.now(),
+    type: document.getElementById('subType').value,
+    period: dateInput.value
+  });
+  resetForm();
+  showScreen('home');
+};
+
+function resetForm() {
+  manualMode = false;
+  dateInput.readOnly = true;
+  dateInput.value = '';
+  initFlatpickr();
+}
+
+/* List */
+function renderList() {
+  const list = document.getElementById('licenseList');
+  list.innerHTML = licenses.length
+    ? licenses.map(l => `<p>${l.type} | ${l.period}</p>`).join('')
+    : '<p>Nenhuma licença cadastrada.</p>';
+}
+
+showScreen('home');
+</script>
+</body>
+</html>
